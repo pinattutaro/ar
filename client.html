@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <!-- client.html (簡易) -->
+    <video id="v" autoplay playsinline style="display:none"></video>
+    <script>
+    const v = document.getElementById('v');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then(s => { v.srcObject = s; });
+
+    const ws = new WebSocket("wss://http://192.168.1.2:8080");
+    ws.onopen = () => { console.log("ws open"); };
+
+    function sendFrame(){
+        const canvas = document.createElement('canvas');
+        canvas.width = 320; canvas.height = 240;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+            const reader = new FileReader();
+            reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            const msg = {
+                type: "frame",
+                clientId: "clientA",
+                timestamp: Date.now()
+            };
+            // send header then binary: simple approach — send JSON then binary
+            ws.send(JSON.stringify(msg));
+            ws.send(base64); // server must expect this
+            };
+            reader.readAsDataURL(blob);
+        }, 'image/jpeg', 0.6);
+    }
+
+    setInterval(sendFrame, 100); // 10fps
+
+    ws.onmessage = (ev) => {
+        const data = JSON.parse(ev.data);
+        if(data.type === 'pose_update'){
+            // data.pose = { rvec, tvec } or full 4x4 matrix
+            // apply to Three.js camera/object
+        }
+    };
+    </script>
+
+</body>
+</html>
